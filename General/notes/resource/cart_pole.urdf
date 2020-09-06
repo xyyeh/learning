@@ -72,7 +72,7 @@
 
     <joint name="cart_to_pole" type="continuous">
         <axis xyz="0 1 0"/>
-        <origin xyz="0.0 0.0 0"/>
+        <origin rpy="3.14159265 0 0" xyz="0.0 0.0 0"/>
         <parent link="cart"/>
         <child link="pole"/>
     </joint>

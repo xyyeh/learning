@@ -20,7 +20,9 @@ class Arm:
         # gravity
         self.dyn.mbc.gravity = e.Vector3d(0, 0, 9.81)
         self.dyn.mbc.zero(self.dyn.mb)
-        # joint angles
+        # jacobians
+        self.J = e.MatrixXd(6, self.dyn.mb.nrDof())
+        self.dJ = e.MatrixXd(6, self.dyn.mb.nrDof())
 
     def get_q(self):
         """
@@ -35,6 +37,25 @@ class Arm:
     def set_q(self, q):
         """
         Sets the joint angles q
+        @param q Joint angles
+        """
+        for i in range(0, self.dyn.mb.nrDof()):
+            self.dyn.mbc.q[i+1][0] = q[i]
+        return q
+
+    def get_dq(self):
+        """
+        Returns the joint velocity dq
+        @param urdf Path for urdf file
+        """
+        q = np.zeros(self.dyn.mb.nrDof())
+        for i in range(0, self.dyn.mb.nrDof()):
+            q[i] = self.dyn.mbc.q[i+1][0]
+        return q
+
+    def set_dq(self, q):
+        """
+        Sets the joint velocity q
         @param q Joint angles
         """
         for i in range(0, self.dyn.mb.nrDof()):
@@ -99,14 +120,21 @@ class Arm:
         @return body SE3
         """
         jac = rbd.Jacobian(self.dyn.mb, link_name.encode('utf-8'), pos)
-        J = e.MatrixXd(6, self.dyn.mb.nrDof())
-        dJ = e.MatrixXd(6, self.dyn.mb.nrDof())
-        jac.fullJacobian(self.dyn.mb, jac.jacobian(
-            self.dyn.mb, self.dyn.mbc), J)
-        jac.fullJacobian(self.dyn.mb, jac.jacobianDot(
-            self.dyn.mb, self.dyn.mbc), dJ)
+        # jac.fullJacobian(self.dyn.mb, jac.jacobianDot(
+        #     self.dyn.mb, self.dyn.mbc), self.dJ)
 
-        return J, dJ
+        # nnz = np.count_nonzero(selection)
+        # S = e.MatrixXd.Zero(nnz, 6)
+
+        # i = 0
+        # for j in range(len(selection)):
+        #     if selection[j] == 1:
+        #         S.coeff(i, j, 1)
+        #         print(i, j)
+        #         i = i+1
+
+        # return S*J, S*dJ
+        # return e.MatrixXd(6, 6), e.MatrixXd(6, 6)
 
     def get_mass_matrix(self):
         """

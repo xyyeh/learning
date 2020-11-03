@@ -73,13 +73,14 @@ class DMPs(object):
 
         if timesteps is None:
             if "tau" in kwargs:
-                timesteps = int(self.timesteps / kwargs["tau"])
+              # if time constant is increase, use more time steps
+                timesteps = int(self.timesteps * kwargs["tau"])
             else:
                 timesteps = self.timesteps
 
         y_track = np.zeros((timesteps, self.n_dmps))
-        dy_track = np.zeros_like(y_track)
-        ddy_track = np.zeros_like(y_track)
+        dy_track = np.zeros((timesteps, self.n_dmps))
+        ddy_track = np.zeros((timesteps, self.n_dmps))
 
         for t in range(timesteps):
             y_track[t], dy_track[t], ddy_track[t] = self.step(**kwargs)
@@ -92,13 +93,13 @@ class DMPs(object):
     def gen_goal(self, y_des):
         raise NotImplementedError()
 
-    def gen_psi(self):
+    def gen_psi(self, x):
         raise NotImplementedError()
 
     def gen_weights(self, f_target):
         raise NotImplementedError()
 
-    def step(self, tau=1.0, error=0.0, ext_force=None):
+    def step(self, tau=1.0, L2_error=0.0, ext_force=None):
         """
         Step the DMP system
 
@@ -106,26 +107,114 @@ class DMPs(object):
             tau (float, optional): [description]. Defaults to 1.0.
             error (float, optional): [description]. Defaults to 0.0.
             ext_force ([type], optional): [description]. Defaults to None.
+
+        Returns:
+            next step of y, dy and ddy of all dmps
         """
 
-        error_coupling = 1/(1+error)
+        # when error is large, we slow down the integration
+        error_coupling = 1/(1+L2_error)
 
         # run canonical system
         x = self.cs.step(tau=tau, error_coupling=error_coupling)
 
-        # generate basis function activation
+        # evaluate basis functions at this x
         psi = self.gen_psi(x)
 
         for d in range(self.n_dmps):
-            # forcing term
+            # goal directed forcing term
             f = self.gen_front_term(
                 x, d) * (np.dot(psi, self.w[d])) / np.sum(psi)
-            # acceleration
-            self.ddy[d] = (1.0/tau)*self.ay[d]*(self.by[d] *
-                                                (self.goal[d]-self.y[d])-self.dy[d])
+
+            # total forces
+            f_total = f
             if ext_force is not None:
-                self.ddy[d] += ext_force[d]
-            self.dy[d] += self.ddy[d] * tau * self.dt * error_coupling
-            self.y[d] += self.dy[d] * tau * self.dt * error_coupling
+                f_total += ext_force[d]
+            # acceleration, tau > 1 to slow down
+            self.ddy[d] = (
+                self.ay[d]*(self.by[d]*(self.goal[d]-self.y[d])-self.dy[d])+f_total)
+
+            # slow down if there is error
+            self.dy[d] += self.ddy[d] * (error_coupling / tau) * self.dt
+            self.y[d] += self.dy[d] * (error_coupling / tau) * self.dt
 
         return self.y, self.dy, self.ddy
+
+    def imitate_path(self, y_des, tau=1.0, plot=False):
+        """
+        Takes in a desired trajectory and generate the system parameters
+
+        Args:
+            y_des (array): Desired trajectory (only position coordinates is required), in an (n_dmps, n_points) array
+            plot (bool, optional): Plots alll the DMPs. Defaults to False.
+
+        Return:
+            interpolated y_des as an (n_dmps, timesteps)
+        """
+        # initial state and goal of all dmps
+        self.y0 = y_des[:, 0].copy()
+        self.y_des = y_des.copy()
+        self.goal = self.gen_goal(y_des)
+        n_y_des_pts = y_des.shape[1]
+
+        # check offset to see if y0 is close to g, which may zero out forcing term
+
+        # interpolate desired trajectory and replace y_des
+        import scipy.interpolate
+        # timesteps = runtime/dt of cs
+        path = np.zeros((self.n_dmps, self.timesteps))
+        x = np.linspace(0, self.cs.run_time, n_y_des_pts)
+        for d in range(self.n_dmps):
+            interp_func = scipy.interpolate.interp1d(x, y_des[d])
+            for i in range(self.timesteps):
+                path[d, i] = interp_func(i * self.dt)
+        y_demo = path
+
+        # generate acceleration and velocity
+        dy_demo = np.gradient(y_demo, axis=1) / self.dt
+        ddy_demo = np.gradient(dy_demo, axis=1) / self.dt
+
+        # # set initial acceleration and velocity to be 0
+        # for d in range(self.n_dmps):
+        #     dy_demo[d, 0] = 0
+        #     ddy_demo[d, 0] = 0
+
+        # desired forcing term, an array of (n_points, n_dmps)
+        f_target = np.zeros((self.timesteps, self.n_dmps))
+        for d in range(self.n_dmps):
+            f_target[:, d] = tau * tau * ddy_demo[d] - self.ay[d] * \
+                (self.by[d] * (self.goal[d] - y_demo[d]) - tau * dy_demo[d])
+
+        # find weights
+        self.gen_weights(f_target)
+
+        # plot
+        if plot is True:
+            # plot the basis function activations
+            import matplotlib.pyplot as plt
+
+            plt.figure()
+            plt.subplot(211)
+            psi_track = self.gen_psi(self.cs.rollout())
+            plt.plot(psi_track)
+            plt.title("basis functions")
+
+            # plot the desired forcing function vs approx
+            for ii in range(self.n_dmps):
+                plt.subplot(2, self.n_dmps, self.n_dmps + 1 + ii)
+                plt.plot(f_target[:, ii], "--", label="f_target %i" % ii)
+            for ii in range(self.n_dmps):
+                plt.subplot(2, self.n_dmps, self.n_dmps + 1 + ii)
+                print("w shape: ", self.w.shape)
+                plt.plot(
+                    np.sum(psi_track * self.w[ii], axis=1) * self.dt,
+                    label="w*psi %i" % ii,
+                )
+                plt.legend()
+            plt.title("DMP forcing function")
+            plt.tight_layout()
+            plt.show()
+
+        self.reset()
+
+        return y_des

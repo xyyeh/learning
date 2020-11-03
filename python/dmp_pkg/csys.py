@@ -6,7 +6,7 @@ class CanonicalSystem(object):
     Canonical system
     """
 
-    def __init__(self, dt, ax=1.0, pattern="discrete"):
+    def __init__(self, dt, ax=5.0, pattern="discrete"):
         """
         Constructor
 
@@ -24,7 +24,9 @@ class CanonicalSystem(object):
             raise Exception("Invalid pattern")
 
         self.dt = dt
-        self.time_steps = int(self.run_time/self.dt)
+        # default time steps
+        self.default_time_steps = int(self.run_time / self.dt)
+
         self.reset()
 
     def reset(self):
@@ -35,13 +37,13 @@ class CanonicalSystem(object):
 
     def step_discrete(self, tau=1.0, error_coupling=1.0):
         """
-        Generate a single step of x for discrete movements. Decaying from 1 to 0 according to dx = -ax*x (see 2.2)
+        Generate a single step of x for discrete movements. Decaying from 1 to 0 according to tau*dx = -ax*x (see 2.2)
 
         Args:
-            tau (float, optional): Time constant, increase tau to make system execute faster. Defaults to 1.0.
-            error_coupling (float, optional): Slow down if error is > 1. Defaults to 1.0.
+            tau (float, optional): Time constant, increase tau to make system execute slower. Defaults to 1.0.
+            error_coupling (float, optional): Slow down if |error| is > 0. Defaults to 1.0.
         """
-        self.x = self.x - self.ax * self.x * (error_coupling / tau) * self.dt
+        self.x += (-self.ax * self.x * error_coupling / tau) * self.dt
         return self.x
 
     def rollout(self, **kwargs):
@@ -49,9 +51,10 @@ class CanonicalSystem(object):
         Generate x for open loop movements
         """
         if "tau" in kwargs:
-            time_steps = int(self.time_steps/kwargs["tau"])
+            # if time constant is increase, use more time steps
+            time_steps = int(self.default_time_steps * kwargs["tau"])
         else:
-            time_steps = self.time_steps
+            time_steps = self.default_time_steps
         self.x_track = np.zeros(time_steps)
 
         self.reset()

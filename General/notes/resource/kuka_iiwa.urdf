@@ -288,7 +288,7 @@
   <joint name="tool_joint" type="fixed">
     <parent link="lbr_iiwa_link_7"/>
     <child link="tool0"/>
-    <origin rpy="0 0 0" xyz="0 0 0.5"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
   </joint>
   <link name="tool0">
     <inertial>
@@ -297,12 +297,17 @@
       <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
     </inertial>
     <visual>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <origin rpy="0 0 0" xyz="0 0 -0.36"/>
       <geometry>
-        <mesh filename="meshes/link_7.obj"/>
+        <box size="0.1 0.2 0.72"/>
       </geometry>
-      <material name="Orange"/>
     </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 -0.36"/>
+      <geometry>
+        <box size="0.1 0.2 0.72"/>
+      </geometry>
+    </collision>
 
   </link>
   

@@ -285,7 +285,7 @@
     </collision>
   </link>
   
-  <joint name="tool_joint" type="fixed">
+  <!--joint name="tool_joint" type="fixed">
     <parent link="lbr_iiwa_link_7"/>
     <child link="tool0"/>
     <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -308,8 +308,7 @@
         <box size="0.1 0.2 0.72"/>
       </geometry>
     </collision>
-
-  </link>
+  </link-->
   
 </robot>
 

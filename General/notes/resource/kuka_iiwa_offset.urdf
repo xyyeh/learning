@@ -259,7 +259,7 @@
   <joint name="lbr_iiwa_joint_7" type="revolute">
     <parent link="lbr_iiwa_link_6"/>
     <child link="lbr_iiwa_link_7"/>
-    <origin rpy="-1.57079632679 3.14159265359 0" xyz="0 0.0 0"/>
+    <origin rpy="-1.57079632679 3.14159265359 0" xyz="0.12 0.0 0.1"/>
     <axis xyz="0 0 1"/>
     <limit effort="300" lower="-3.05432619099" upper="3.05432619099" velocity="10"/>
     <dynamics damping="0.5"/>
